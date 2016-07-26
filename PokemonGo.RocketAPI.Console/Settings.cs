@@ -120,6 +120,7 @@ namespace PokemonGo.RocketAPI.Console
                     PokemonId.Flareon,
                     PokemonId.Snorlax,
                     PokemonId.Alakazam,
+                    PokemonId.Arcanine,
                     PokemonId.Mew,
                     PokemonId.Mewtwo
                 };
