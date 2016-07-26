@@ -106,7 +106,22 @@ namespace PokemonGo.RocketAPI.Console
             {
                 //Type of pokemons not to transfer
                 List<PokemonId> defaultPokemon = new List<PokemonId> {
-                    PokemonId.Dragonite, PokemonId.Charizard, PokemonId.Zapdos, PokemonId.Snorlax, PokemonId.Alakazam, PokemonId.Mew, PokemonId.Mewtwo
+                    PokemonId.Dragonite,
+                    PokemonId.Aerodactyl,
+                    PokemonId.Gyarados,
+                    PokemonId.Charizard,
+                    PokemonId.Zapdos,
+                    PokemonId.Articuno,
+                    PokemonId.Ditto,
+                    PokemonId.Moltres,
+                    PokemonId.Blastoise,
+                    PokemonId.Lapras,
+                    PokemonId.Jolteon,
+                    PokemonId.Flareon,
+                    PokemonId.Snorlax,
+                    PokemonId.Alakazam,
+                    PokemonId.Mew,
+                    PokemonId.Mewtwo
                 };
                 _pokemonsNotToTransfer = _pokemonsNotToTransfer ?? LoadPokemonList("PokemonsNotToTransfer.ini", defaultPokemon);
                 return _pokemonsNotToTransfer;
