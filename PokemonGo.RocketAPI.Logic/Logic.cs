@@ -2,18 +2,15 @@
 
 using System;
 using System.Collections.Generic;
-using System.Device.Location;
+//using System.Device.Location;
 using System.Linq;
-using System.Threading;
 using System.Threading.Tasks;
 using PokemonGo.RocketAPI.Enums;
-using PokemonGo.RocketAPI.Exceptions;
 using PokemonGo.RocketAPI.Extensions;
 using PokemonGo.RocketAPI.GeneratedCode;
 using PokemonGo.RocketAPI.Logic.Utils;
 using PokemonGo.RocketAPI.Helpers;
 using System.IO;
-using System.Text;
 using PokemonGo.RocketAPI.Logging;
 
 #endregion
@@ -29,8 +26,10 @@ namespace PokemonGo.RocketAPI.Logic
         private readonly Statistics _stats;
         private readonly Navigation _navigation;
         private GetPlayerResponse _playerProfile;
+        private string configs_path = Path.Combine(Directory.GetCurrentDirectory(), "Configs");
 
         private int recycleCounter = 0;
+        private bool IsInitialized = false;
 
         public Logic(ISettings clientSettings)
         {
@@ -105,46 +104,50 @@ namespace PokemonGo.RocketAPI.Logic
 
             while (true)
             {
-                await Inventory.getCachedInventory(_client);
-                _playerProfile = await _client.GetProfile();
-                var PlayerName = Statistics.GetUsername(_client, _playerProfile);
-                _stats.UpdateConsoleTitle(_client, _inventory);
-                var _currentLevelInfos = await Statistics._getcurrentLevelInfos(_inventory);
+                if (!IsInitialized)
+                {
+                    await Inventory.getCachedInventory(_client);
+                    _playerProfile = await _client.GetProfile();
+                    var PlayerName = Statistics.GetUsername(_client, _playerProfile);
+                    _stats.UpdateConsoleTitle(_client, _inventory);
+                    var _currentLevelInfos = await Statistics._getcurrentLevelInfos(_inventory);
 
-                Logger.Write("----------------------------", LogLevel.None, ConsoleColor.Yellow);
-                if (_clientSettings.AuthType == AuthType.Ptc)
-                    Logger.Write($"PTC Account: {PlayerName}\n", LogLevel.None, ConsoleColor.Cyan);
-                Logger.Write($"Latitude: {_clientSettings.DefaultLatitude}", LogLevel.None, ConsoleColor.DarkGray);
-                Logger.Write($"Longitude: {_clientSettings.DefaultLongitude}", LogLevel.None, ConsoleColor.DarkGray);
-                Logger.Write("----------------------------", LogLevel.None, ConsoleColor.Yellow);
-                Logger.Write("Your Account:\n");
-                Logger.Write($"Name: {PlayerName}", LogLevel.None, ConsoleColor.DarkGray);
-                Logger.Write($"Team: {_playerProfile.Profile.Team}", LogLevel.None, ConsoleColor.DarkGray);
-                Logger.Write($"Level: {_currentLevelInfos}", LogLevel.None, ConsoleColor.DarkGray);
-                Logger.Write($"Stardust: {_playerProfile.Profile.Currency.ToArray()[1].Amount}", LogLevel.None, ConsoleColor.DarkGray);
-                Logger.Write("----------------------------", LogLevel.None, ConsoleColor.Yellow);
-                await DisplayHighests();
-                Logger.Write("----------------------------", LogLevel.None, ConsoleColor.Yellow);
+                    Logger.Write("----------------------------", LogLevel.None, ConsoleColor.Yellow);
+                    if (_clientSettings.AuthType == AuthType.Ptc)
+                        Logger.Write($"PTC Account: {PlayerName}\n", LogLevel.None, ConsoleColor.Cyan);
+                    Logger.Write($"Latitude: {_clientSettings.DefaultLatitude}", LogLevel.None, ConsoleColor.DarkGray);
+                    Logger.Write($"Longitude: {_clientSettings.DefaultLongitude}", LogLevel.None, ConsoleColor.DarkGray);
+                    Logger.Write("----------------------------", LogLevel.None, ConsoleColor.Yellow);
+                    Logger.Write("Your Account:\n");
+                    Logger.Write($"Name: {PlayerName}", LogLevel.None, ConsoleColor.DarkGray);
+                    Logger.Write($"Team: {_playerProfile.Profile.Team}", LogLevel.None, ConsoleColor.DarkGray);
+                    Logger.Write($"Level: {_currentLevelInfos}", LogLevel.None, ConsoleColor.DarkGray);
+                    Logger.Write($"Stardust: {_playerProfile.Profile.Currency.ToArray()[1].Amount}", LogLevel.None, ConsoleColor.DarkGray);
+                    Logger.Write("----------------------------", LogLevel.None, ConsoleColor.Yellow);
+                    await DisplayHighests();
+                    Logger.Write("----------------------------", LogLevel.None, ConsoleColor.Yellow);
 
-                var PokemonsNotToTransfer = _clientSettings.PokemonsNotToTransfer;
-                var PokemonsNotToCatch = _clientSettings.PokemonsNotToCatch;
-                var PokemonsToEvolve = _clientSettings.PokemonsToEvolve;
+                    var PokemonsNotToTransfer = _clientSettings.PokemonsNotToTransfer;
+                    var PokemonsNotToCatch = _clientSettings.PokemonsNotToCatch;
+                    var PokemonsToEvolve = _clientSettings.PokemonsToEvolve;
 
-                if (_clientSettings.EvolveAllPokemonWithEnoughCandy || _clientSettings.EvolveOnlyPokemonAboveIV) await EvolveAllPokemonWithEnoughCandy(_clientSettings.PokemonsToEvolve);
-                if (_clientSettings.TransferDuplicatePokemon) await TransferDuplicatePokemon();
-                await PokemonToCSV();
-                await RecycleItems();
+                    if (_clientSettings.EvolvePokemon || _clientSettings.EvolveOnlyPokemonAboveIV) await EvolvePokemon(_clientSettings.PokemonsToEvolve);
+                    if (_clientSettings.TransferPokemon) await TransferPokemon();
+                    await _inventory.ExportPokemonToCSV(_playerProfile.Profile);
+                    await RecycleItems();
+                }
+                IsInitialized = true;
                 await ExecuteFarmingPokestopsAndPokemons(_clientSettings.UseGPXPathing);
 
                 /*
-            * Example calls below
-            *
-            var profile = await _client.GetProfile();
-            var settings = await _client.GetSettings();
-            var mapObjects = await _client.GetMapObjects();
-            var inventory = await _client.GetInventory();
-            var pokemons = inventory.InventoryDelta.InventoryItems.Select(i => i.InventoryItemData?.Pokemon).Where(p => p != null && p?.PokemonId > 0);
-            */
+                * Example calls below
+                *
+                var profile = await _client.GetProfile();
+                var settings = await _client.GetSettings();
+                var mapObjects = await _client.GetMapObjects();
+                var inventory = await _client.GetInventory();
+                var pokemons = inventory.InventoryDelta.InventoryItems.Select(i => i.InventoryItemData?.Pokemon).Where(p => p != null && p?.PokemonId > 0);
+                */
 
                 await Task.Delay(10000);
             }
@@ -213,7 +216,9 @@ namespace PokemonGo.RocketAPI.Logic
                                 var pokeStop = pokestopList[0];
                                 pokestopList.RemoveAt(0);
 
-                                await _client.GetFort(pokeStop.Id, pokeStop.Latitude, pokeStop.Longitude);
+                                var distance = LocationUtils.CalculateDistanceInMeters(_client.CurrentLat, _client.CurrentLng, pokeStop.Latitude, pokeStop.Longitude);
+                                var fortInfo = await _client.GetFort(pokeStop.Id, pokeStop.Latitude, pokeStop.Longitude);
+                                Logger.Write($"Name: {fortInfo.Name} in {distance:0.##} m distance", LogLevel.Pokestop);
 
                                 var fortSearch =
                                     await _client.SearchFort(pokeStop.Id, pokeStop.Latitude, pokeStop.Longitude);
@@ -221,15 +226,14 @@ namespace PokemonGo.RocketAPI.Logic
                                 {
                                     _stats.AddExperience(fortSearch.ExperienceAwarded);
                                     _stats.UpdateConsoleTitle(_client, _inventory);
-                                    //todo: fix egg crash
-                                    Logger.Write(
-                                        $"XP: {fortSearch.ExperienceAwarded}, Gems: {fortSearch.GemsAwarded}, Items: {StringUtils.GetSummedFriendlyNameOfItemAwardList(fortSearch.ItemsAwarded)}",
-                                        LogLevel.Pokestop);
+                                    string EggReward = fortSearch.PokemonDataEgg != null ? "1" : "0";
+                                    Logger.Write($"XP: {fortSearch.ExperienceAwarded}, Gems: {fortSearch.GemsAwarded}, Eggs: {EggReward}, Items: {StringUtils.GetSummedFriendlyNameOfItemAwardList(fortSearch.ItemsAwarded)}", LogLevel.Pokestop);
+                                    recycleCounter++;
                                 }
 
-                                await Task.Delay(1000);
-                                await RecycleItems();
-                                if (_clientSettings.TransferDuplicatePokemon) await TransferDuplicatePokemon();
+                                await RandomHelper.RandomDelay(50, 200);
+                                if (recycleCounter >= 5)
+                                    await RecycleItems();
                             }
 
                             await
@@ -295,7 +299,7 @@ namespace PokemonGo.RocketAPI.Logic
                 Logger.Write("No usable PokeStops found in your area. Is your maximum distance too small?",
                     LogLevel.Warning);
             else
-                Logger.Write($"Found {pokeStops.Count()} pokestops", LogLevel.None, ConsoleColor.Green);
+                Logger.Write($"Found {pokeStops.Count()} {(pokeStops.Count() == 1 ? "Pokestop" : "Pokestops")}", LogLevel.Info);
 
             while (pokestopList.Any())
             {
@@ -344,6 +348,7 @@ namespace PokemonGo.RocketAPI.Logic
                 if (bestBerry != ItemId.ItemUnknown && probability.HasValue && probability.Value < 0.35)
                 {
                     await _client.UseCaptureItem(pokemon.EncounterId, bestBerry, pokemon.SpawnpointId);
+                    berries.Count--;
                     Logger.Write($"{bestBerry} used, remaining: {berries.Count}", LogLevel.Berry);
                     await RandomHelper.RandomDelay(50, 200);
                 }
@@ -406,14 +411,14 @@ namespace PokemonGo.RocketAPI.Logic
                     i =>
                     LocationUtils.CalculateDistanceInMeters(_client.CurrentLat, _client.CurrentLng, i.Latitude, i.Longitude));
 
-            if (_clientSettings.UsePokemonToNotCatchFilter)
+            if (_clientSettings.UsePokemonToNotCatchList)
             {
                 ICollection<PokemonId> filter = _clientSettings.PokemonsNotToCatch;
                 pokemons = mapObjects.MapCells.SelectMany(i => i.CatchablePokemons).Where(p => !filter.Contains(p.PokemonId)).OrderBy(i => LocationUtils.CalculateDistanceInMeters(_client.CurrentLat, _client.CurrentLng, i.Latitude, i.Longitude));
             }
 
             if (pokemons != null && pokemons.Any())
-                Logger.Write($"Found {pokemons.Count()} catchable Pokemon", LogLevel.None, ConsoleColor.Green);
+                Logger.Write($"Found {pokemons.Count()} catchable Pokemon", LogLevel.Info);
             else
                 return;
 
@@ -433,17 +438,17 @@ namespace PokemonGo.RocketAPI.Logic
                     await RandomHelper.RandomDelay(50, 200);
             }
 
-            if (_clientSettings.EvolveAllPokemonWithEnoughCandy || _clientSettings.EvolveOnlyPokemonAboveIV) await EvolveAllPokemonWithEnoughCandy(_clientSettings.PokemonsToEvolve);
-            if (_clientSettings.TransferDuplicatePokemon) await TransferDuplicatePokemon();
+            if (_clientSettings.EvolvePokemon || _clientSettings.EvolveOnlyPokemonAboveIV) await EvolvePokemon(_clientSettings.PokemonsToEvolve);
+            if (_clientSettings.TransferPokemon) await TransferPokemon();
         }
 
-        private async Task EvolveAllPokemonWithEnoughCandy(IEnumerable<PokemonId> filter = null)
+        private async Task EvolvePokemon(IEnumerable<PokemonId> filter = null)
         {
             await Inventory.getCachedInventory(_client, true);
             var pokemonToEvolve = await _inventory.GetPokemonToEvolve(filter);
             if (pokemonToEvolve != null && pokemonToEvolve.Any())
             {
-                Logger.Write($"{pokemonToEvolve.Count()} Pokemon:", LogLevel.Evolve);
+                Logger.Write($"Found {pokemonToEvolve.Count()} Pokemon for Evolve:", LogLevel.Info);
                 if (_clientSettings.useLuckyEggsWhileEvolving)
                     await UseLuckyEgg();
             }
@@ -462,12 +467,12 @@ namespace PokemonGo.RocketAPI.Logic
             }
         }
 
-        private async Task TransferDuplicatePokemon()
+        private async Task TransferPokemon()
         {
             await Inventory.getCachedInventory(_client, true);
-            var duplicatePokemons = await _inventory.GetDuplicatePokemonToTransfer(_clientSettings.NotTransferPokemonsThatCanEvolve, _clientSettings.PrioritizeIVOverCP, _clientSettings.PokemonsNotToTransfer);
+            var duplicatePokemons = await _inventory.GetPokemonToTransfer(_clientSettings.NotTransferPokemonsThatCanEvolve, _clientSettings.PrioritizeIVOverCP, _clientSettings.PokemonsNotToTransfer);
             if (duplicatePokemons != null && duplicatePokemons.Any())
-                Logger.Write($"{duplicatePokemons.Count()} Pokemon:", LogLevel.Transfer);
+                Logger.Write($"Found {duplicatePokemons.Count()} Pokemon for Transfer:", LogLevel.Info);
 
             foreach (var duplicatePokemon in duplicatePokemons)
             {
@@ -498,7 +503,7 @@ namespace PokemonGo.RocketAPI.Logic
             await Inventory.getCachedInventory(_client, true);
             var items = await _inventory.GetItemsToRecycle(_clientSettings);
             if (items != null && items.Any())
-                Logger.Write($"{items.Count()} {(items.Count() == 1 ? "Item" : "Items")}:", LogLevel.Recycling);
+                Logger.Write($"Found {items.Count()} Recyclable {(items.Count() == 1 ? "Item" : "Items")}:", LogLevel.Info);
 
             foreach (var item in items)
             {
@@ -600,59 +605,6 @@ namespace PokemonGo.RocketAPI.Logic
             }
         }
 
-        private async Task PokemonToCSV(string filename = "PokeList.csv")
-        {
-            string path = Directory.GetCurrentDirectory() + "\\Export\\";
-            if (!Directory.Exists(path))
-                Directory.CreateDirectory(path);
-            if (Directory.Exists(path))
-            {
-                try
-                {
-                    if (File.Exists(path + filename))
-                        File.Delete(path + filename);
-                    if (!File.Exists(path + filename))
-                    {
-                        var AllPokemon = await _inventory.GetHighestsPerfect(1000);
-                        var myPokemonSettings = await _inventory.GetPokemonSettings();
-                        var pokemonSettings = myPokemonSettings.ToList();
-
-                        var myPokemonFamilies = await _inventory.GetPokemonFamilies();
-                        var pokemonFamilies = myPokemonFamilies.ToArray();
-                        var csvExportPokemonAll = new StringBuilder();
-                        var _currentLevelInfos = await Statistics._getcurrentLevelInfos(_inventory);
-                        csvExportPokemonAll.AppendLine(Statistics.GetUsername(_client, _playerProfile) + _currentLevelInfos.ToString());
-                        var columnnames = string.Format("{0};{1};{2};{3};{4};{5};{6};{7};{8};{9}", "#", "NAME", "LVL", "CP", "MaxCP", "PERFECTION", "CANDY", "iATK", "iDEF", "iSTA");
-                        csvExportPokemonAll.AppendLine(columnnames);
-
-                        foreach (var pokemon in AllPokemon)
-                        {
-                            int POKENUMBER = (int)pokemon.PokemonId;
-                            var NAME = $"{pokemon.PokemonId}";
-                            var LVL = $"{PokemonInfo.GetLevel(pokemon)}";
-                            var MaxCP = $"{PokemonInfo.CalculateMaxCP(pokemon)}";
-                            var CP = $"{pokemon.Cp}";
-                            string PERFECTION = PokemonInfo.CalculatePokemonPerfection(pokemon).ToString("0.00");
-                            var IATK = $"{pokemon.IndividualAttack}";
-                            var IDEF = $"{pokemon.IndividualDefense}";
-                            var ISTA = $"{pokemon.IndividualStamina}";
-                            var settings = pokemonSettings.Single(x => x.PokemonId == pokemon.PokemonId);
-                            var familyCandy = pokemonFamilies.Single(x => settings.FamilyId == x.FamilyId);
-                            var CANDY = familyCandy.Candy;
-                            var pokedata = string.Format("{0};{1};{2};{3};{4};{5};{6};{7};{8};{9}", POKENUMBER, NAME, LVL, CP, MaxCP, PERFECTION, CANDY, IATK, IDEF, ISTA);
-                            csvExportPokemonAll.AppendLine(pokedata);
-                        }
-                        Logger.Write($"Export all Pokemon to \"\\Export\\{filename}\"", LogLevel.Info);
-                        File.WriteAllText(path + filename, csvExportPokemonAll.ToString());
-                    }
-                }
-                catch
-                {
-                    Logger.Write("Export all Pokemons to CSV not possible. File seems be in use!", LogLevel.Warning);
-                }
-            }
-        }
-
         /*
         private async Task LoadAndDisplayGpxFile()
         {
@@ -725,19 +677,19 @@ namespace PokemonGo.RocketAPI.Logic
         /// </summary>
         private void ResetCoords(string filename = "LastCoords.ini")
         {
-            string path = Directory.GetCurrentDirectory() + "\\Configs\\";
-            if (!File.Exists(path + filename)) return;
+            string lastcoords_file = Path.Combine(configs_path, filename);
+            if (!File.Exists(lastcoords_file)) return;
             Tuple<double, double> latLngFromFile = Client.GetLatLngFromFile();
             if (latLngFromFile == null) return;
             double distance = LocationUtils.CalculateDistanceInMeters(latLngFromFile.Item1, latLngFromFile.Item2, _clientSettings.DefaultLatitude, _clientSettings.DefaultLongitude);
-            DateTime? lastModified = File.Exists(path + filename) ? (DateTime?)File.GetLastWriteTime(path + filename) : null;
+            DateTime? lastModified = File.Exists(lastcoords_file) ? (DateTime?)File.GetLastWriteTime(lastcoords_file) : null;
             if (lastModified == null) return;
             double? hoursSinceModified = (DateTime.Now - lastModified).HasValue ? (double?)((DateTime.Now - lastModified).Value.Minutes / 60.0) : null;
             if (hoursSinceModified == null || hoursSinceModified < 1) return; // Shouldn't really be null, but can be 0 and that's bad for division.
             var kmph = (distance / 1000) / (hoursSinceModified ?? .1);
             if (kmph < 80) // If speed required to get to the default location is < 80km/hr
             {
-                File.Delete(path + filename);
+                File.Delete(lastcoords_file);
                 Logger.Write("Detected realistic Traveling , using UserSettings.settings", LogLevel.Warning);
             }
             else

@@ -6,6 +6,7 @@ using Google.Protobuf;
 using PokemonGo.RocketAPI.Exceptions;
 using PokemonGo.RocketAPI.GeneratedCode;
 using PokemonGo.RocketAPI.Logging;
+using System.Diagnostics;
 
 #endregion
 
@@ -37,7 +38,10 @@ namespace PokemonGo.RocketAPI.Extensions
             var response = await PostProto(client, url, request);
 
             if (response.Payload.Count == 0)
+            {
+                Logger.Write("InvalidResponseException from HttpClientExtensions.cs", LogLevel.Error);
                 throw new InvalidResponseException();
+            }
 
             //Decode payload
             //todo: multi-payload support

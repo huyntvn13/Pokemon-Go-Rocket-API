@@ -16,29 +16,31 @@ namespace PokemonGo.RocketAPI.Console
 {
     public class Settings : ISettings
     {
+        private string configs_path = Path.Combine(Directory.GetCurrentDirectory(), "Configs");
+
         public AuthType AuthType => (AuthType)Enum.Parse(typeof(AuthType), UserSettings.Default.AuthType, true);
         public string PtcUsername => UserSettings.Default.PtcUsername;
         public string PtcPassword => UserSettings.Default.PtcPassword;
         public double DefaultLatitude => UserSettings.Default.DefaultLatitude;
         public double DefaultLongitude => UserSettings.Default.DefaultLongitude;
         public double DefaultAltitude => UserSettings.Default.DefaultAltitude;
+        public bool UseGPXPathing => UserSettings.Default.UseGPXPathing;
+        public string GPXFile => UserSettings.Default.GPXFile;
+        public double WalkingSpeedInKilometerPerHour => UserSettings.Default.WalkingSpeedInKilometerPerHour;
+        public int MaxTravelDistanceInMeters => UserSettings.Default.MaxTravelDistanceInMeters;
+
+        public bool UsePokemonToNotCatchList => UserSettings.Default.UsePokemonToNotCatchList;
+        public bool EvolvePokemon => UserSettings.Default.EvolvePokemon;
+        public bool EvolveOnlyPokemonAboveIV => UserSettings.Default.EvolveOnlyPokemonAboveIV;
+        public float EvolveOnlyPokemonAboveIVValue => UserSettings.Default.EvolveOnlyPokemonAboveIVValue;
+        public bool TransferPokemon => UserSettings.Default.TransferPokemon;
+        public int TransferPokemonKeepDuplicateAmount => UserSettings.Default.TransferPokemonKeepDuplicateAmount;
+        public bool NotTransferPokemonsThatCanEvolve => UserSettings.Default.NotTransferPokemonsThatCanEvolve;
 
         public float KeepMinIVPercentage => UserSettings.Default.KeepMinIVPercentage;
         public int KeepMinCP => UserSettings.Default.KeepMinCP;
-        public double WalkingSpeedInKilometerPerHour => UserSettings.Default.WalkingSpeedInKilometerPerHour;
-        public bool EvolveAllPokemonWithEnoughCandy => UserSettings.Default.EvolveAllPokemonWithEnoughCandy;
         public bool useLuckyEggsWhileEvolving => UserSettings.Default.useLuckyEggsWhileEvolving;
-        public bool TransferDuplicatePokemon => UserSettings.Default.TransferDuplicatePokemon;
-        public bool NotTransferPokemonsThatCanEvolve => UserSettings.Default.NotTransferPokemonsThatCanEvolve;
-        public bool UsePokemonToNotCatchFilter => UserSettings.Default.UsePokemonToNotCatchFilter;
-        public int KeepMinDuplicatePokemon => UserSettings.Default.KeepMinDuplicatePokemon;
         public bool PrioritizeIVOverCP => UserSettings.Default.PrioritizeIVOverCP;
-        public int MaxTravelDistanceInMeters => UserSettings.Default.MaxTravelDistanceInMeters;
-        public bool EvolveOnlyPokemonAboveIV => UserSettings.Default.EvolveOnlyPokemonAboveIV;
-        public float EvolveAboveIVValue => UserSettings.Default.EvolveAboveIVValue;
-
-        public bool UseGPXPathing => UserSettings.Default.UseGPXPathing;
-        public string GPXFile => UserSettings.Default.GPXFile;
 
         private ICollection<PokemonId> _pokemonsToEvolve;
         private ICollection<PokemonId> _pokemonsNotToTransfer;
@@ -127,27 +129,25 @@ namespace PokemonGo.RocketAPI.Console
         private ICollection<PokemonId> LoadPokemonList(string filename, List<PokemonId> defaultPokemon)
         {
             ICollection<PokemonId> result = new List<PokemonId>();
-            string path = Directory.GetCurrentDirectory() + "\\Configs\\";
-
-            if (!Directory.Exists(path))
-                Directory.CreateDirectory(path);
-
-            if (!File.Exists(path + filename))
+            if (!Directory.Exists(configs_path))
+                Directory.CreateDirectory(configs_path);
+            string pokemonlist_file = Path.Combine(configs_path, filename);
+            if (!File.Exists(pokemonlist_file))
             {
                 Logger.Write($"File: \"\\Configs\\{filename}\" not found, creating new...", LogLevel.Warning);
-                using (var w = File.AppendText(path + filename))
+                using (var w = File.AppendText(pokemonlist_file))
                 {
                     defaultPokemon.ForEach(pokemon => w.WriteLine(pokemon.ToString()));
                     defaultPokemon.ForEach(pokemon => result.Add((PokemonId)pokemon));
                     w.Close();
                 }
             }
-            if (File.Exists(path + filename))
+            if (File.Exists(pokemonlist_file))
             {
                 Logger.Write($"Loading File: \"\\Configs\\{filename}\"", LogLevel.Info);
 
                 var content = string.Empty;
-                using (StreamReader reader = new StreamReader(path + filename))
+                using (StreamReader reader = new StreamReader(pokemonlist_file))
                 {
                     content = reader.ReadToEnd();
                     reader.Close();

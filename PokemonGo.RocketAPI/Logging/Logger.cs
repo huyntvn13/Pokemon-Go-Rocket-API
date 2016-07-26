@@ -16,7 +16,7 @@ namespace PokemonGo.RocketAPI.Logging
     public class Logger
     {
         static string _currentFile = string.Empty;
-        static string path = Directory.GetCurrentDirectory() + "\\Logs\\";
+        static string path = Path.Combine(Directory.GetCurrentDirectory(), "Logs");
 
         //private static Logger _logger;
 
@@ -83,7 +83,7 @@ namespace PokemonGo.RocketAPI.Logging
                     System.Console.WriteLine($"[{DateTime.Now.ToString("HH:mm:ss")}] (EVOLVE) {message}");
                     break;
                 case LogLevel.Berry:
-                    System.Console.ForegroundColor = ConsoleColor.White;
+                    System.Console.ForegroundColor = ConsoleColor.Magenta;
                     System.Console.WriteLine($"[{DateTime.Now.ToString("HH:mm:ss")}] (BERRY) {message}");
                     break;
                 case LogLevel.Egg:
@@ -109,7 +109,7 @@ namespace PokemonGo.RocketAPI.Logging
         private static void Log(string message)
         {
             // maybe do a new log rather than appending?
-            using (var log = File.AppendText(path + _currentFile + ".txt"))
+            using (var log = File.AppendText(Path.Combine(path, _currentFile + ".txt")))
             {
                 log.WriteLine(message);
                 log.Flush();
